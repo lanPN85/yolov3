@@ -44,12 +44,23 @@ def detect(save_img=False):
     # Export mode
     if ONNX_EXPORT:
         model.fuse()
+        input_names = ['images']
+        output_names = ['boxes', 'classes']
+        dynamic_axes = {
+            'images': {0: 'batch'},
+            'boxes': {0: 'batch'},
+            'classes': {0: 'batch'},
+        }
         img = torch.zeros((1, 3) + img_size)  # (1, 3, 320, 192)
-        torch.onnx.export(model, img, 'weights/export.onnx', verbose=False, opset_version=11)
+        torch.onnx.export(model, img, 'weights/yolov3.onnx', 
+            verbose=False, opset_version=11,
+            input_names=input_names,
+            output_names=output_names,
+            dynamic_axes=dynamic_axes)
 
         # Validate exported model
         import onnx
-        model = onnx.load('weights/export.onnx')  # Load the ONNX model
+        model = onnx.load('weights/yolov3.onnx')  # Load the ONNX model
         onnx.checker.check_model(model)  # Check that the IR is well formed
         print(onnx.helper.printable_graph(model.graph))  # Print a human readable representation of the graph
         return
