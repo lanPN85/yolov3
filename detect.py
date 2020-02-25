@@ -45,14 +45,14 @@ def detect(save_img=False):
     if ONNX_EXPORT:
         model.fuse()
         input_names = ['images']
-        output_names = ['boxes', 'classes']
+        output_names = ['classes', 'boxes']
         dynamic_axes = {
             'images': {0: 'batch'},
             'boxes': {0: 'batch'},
             'classes': {0: 'batch'},
         }
-        img = torch.zeros((1, 3) + img_size)  # (1, 3, 320, 192)
-        torch.onnx.export(model, img, 'weights/yolov3.onnx', 
+        img = torch.zeros((2, 3) + img_size)  # (2, 3, 320, 192)
+        torch.onnx.export(model, img, 'weights/yolov3-2.onnx', 
             verbose=False, opset_version=11,
             input_names=input_names,
             output_names=output_names,
