@@ -223,7 +223,7 @@ class YOLOLayer(nn.Module):
             wh = torch.exp(p[:, 2:4]) * anchor_wh  # width, height
             p_cls = torch.sigmoid(p[:, 4:5]) if self.nc == 1 else \
                 torch.sigmoid(p[:, 5:self.no]) * torch.sigmoid(p[:, 4:5])  # conf
-            return p_cls, xy * ng, wh
+            return p_cls.view(bs, -1, self.nc), (xy * ng).view(bs, -1, 2), wh.view(bs, -1, 2)
 
         else:  # inference
             # s = 1.5  # scale_xy  (pxy = pxy * s - (s - 1) / 2)
@@ -306,8 +306,10 @@ class Darknet(nn.Module):
         if self.training:  # train
             return yolo_out
         elif ONNX_EXPORT:  # export
-            x = [torch.cat(x, 0) for x in zip(*yolo_out)]
-            return x[0], torch.cat(x[1:3], 1)  # scores, boxes: 3780x80, 3780x4
+            x = [torch.cat(x, 1) for x in zip(*yolo_out)]
+            scores = x[0]
+            boxes = torch.cat(x[1:], 2)
+            return scores, boxes  # scores, boxes: bs x 3780x80, bs x 3780x4
         else:  # test
             io, p = zip(*yolo_out)  # inference output, training output
             return torch.cat(io, 1), p
