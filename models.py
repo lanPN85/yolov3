@@ -196,7 +196,10 @@ class YOLOLayer(nn.Module):
 
     def forward(self, p, img_size, var=None):
         if ONNX_EXPORT:
-            bs = 1  # batch size
+            # bs = 1  # batch size
+            bs, _, ny, nx = p.shape  # bs, 255, 13, 13
+            if (self.nx, self.ny) != (nx, ny):
+                create_grids(self, img_size, (nx, ny), p.device, p.dtype)
         else:
             bs, _, ny, nx = p.shape  # bs, 255, 13, 13
             if (self.nx, self.ny) != (nx, ny):
@@ -210,10 +213,10 @@ class YOLOLayer(nn.Module):
 
         elif ONNX_EXPORT:
             # Avoid broadcasting for ANE operations
-            m = self.na * self.nx * self.ny
+            m = self.na * self.nx * self.ny * bs
             ng = 1 / self.ng.repeat((m, 1))
-            grid_xy = self.grid_xy.repeat((1, self.na, 1, 1, 1)).view(m, 2)
-            anchor_wh = self.anchor_wh.repeat((1, 1, self.nx, self.ny, 1)).view(m, 2) * ng
+            grid_xy = self.grid_xy.repeat((bs, self.na, 1, 1, 1)).view(m, 2)
+            anchor_wh = self.anchor_wh.repeat((bs, 1, self.nx, self.ny, 1)).view(m, 2) * ng
 
             p = p.view(m, self.no)
             xy = torch.sigmoid(p[:, 0:2]) + grid_xy  # x, y
