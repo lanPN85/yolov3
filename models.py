@@ -211,30 +211,36 @@ class YOLOLayer(nn.Module):
         if self.training:
             return p
 
-        elif ONNX_EXPORT:
-            # Avoid broadcasting for ANE operations
-            m = self.na * self.nx * self.ny * bs
-            ng = 1 / self.ng.repeat((m, 1))
-            grid_xy = self.grid_xy.repeat((bs, self.na, 1, 1, 1)).view(m, 2)
-            anchor_wh = self.anchor_wh.repeat((bs, 1, self.nx, self.ny, 1)).view(m, 2) * ng
+        # elif ONNX_EXPORT:
+        #     # Avoid broadcasting for ANE operations
+        #     m = self.na * self.nx * self.ny * bs
+        #     ng = 1 / self.ng.repeat((m, 1))
+        #     grid_xy = self.grid_xy.repeat((bs, self.na, 1, 1, 1)).view(m, 2)
+        #     anchor_wh = self.anchor_wh.repeat((bs, 1, self.nx, self.ny, 1)).view(m, 2) * ng
 
-            p = p.view(m, self.no)
-            xy = torch.sigmoid(p[:, 0:2]) + grid_xy  # x, y
-            wh = torch.exp(p[:, 2:4]) * anchor_wh  # width, height
-            p_cls = torch.sigmoid(p[:, 4:5]) if self.nc == 1 else \
-                torch.sigmoid(p[:, 5:self.no]) * torch.sigmoid(p[:, 4:5])  # conf
-            return p_cls.view(bs, -1, self.nc), (xy * ng).view(bs, -1, 2), wh.view(bs, -1, 2)
-
+        #     p = p.view(m, self.no)
+        #     xy = torch.sigmoid(p[:, 0:2]) + grid_xy  # x, y
+        #     wh = torch.exp(p[:, 2:4]) * anchor_wh  # width, height
+        #     p_cls = torch.sigmoid(p[:, 4:5]) if self.nc == 1 else \
+        #         torch.sigmoid(p[:, 5:self.no]) * torch.sigmoid(p[:, 4:5])  # conf
+        #     return p_cls.view(bs, -1, self.nc), (xy * ng).view(bs, -1, 2), wh.view(bs, -1, 2)
         else:  # inference
             # s = 1.5  # scale_xy  (pxy = pxy * s - (s - 1) / 2)
             io = p.clone()  # inference output
-            io[..., :2] = torch.sigmoid(io[..., :2]) + self.grid_xy  # xy
-            io[..., 2:4] = torch.exp(io[..., 2:4]) * self.anchor_wh  # wh yolo method
+            tmp = torch.sigmoid(io[..., :2]) + self.grid_xy
+            io = torch.cat([tmp, io[..., 2:]], -1)
+            tmp = torch.exp(io[..., 2:4]) * self.anchor_wh
+            io = torch.cat([io[..., :2], tmp, io[..., 4:]], -1)
+            # io[..., 2:4] = torch.exp(io[..., 2:4]) * self.anchor_wh  # wh yolo method
             # io[..., 2:4] = ((torch.sigmoid(io[..., 2:4]) * 2) ** 3) * self.anchor_wh  # wh power method
-            io[..., :4] *= self.stride
+            tmp = io[..., :4] * self.stride
+            io = torch.cat([tmp, io[..., 4:]], -1)
+            # io[..., :4] *= self.stride
 
             if 'default' in self.arc:  # seperate obj and cls
-                torch.sigmoid_(io[..., 4:])
+                tmp = torch.sigmoid(io[..., 4:])
+                io = torch.cat([io[..., :4], tmp], -1)
+                # torch.sigmoid_(io[..., 4:])
             elif 'BCE' in self.arc:  # unified BCE (80 classes)
                 torch.sigmoid_(io[..., 5:])
                 io[..., 4] = 1
@@ -306,10 +312,12 @@ class Darknet(nn.Module):
         if self.training:  # train
             return yolo_out
         elif ONNX_EXPORT:  # export
-            x = [torch.cat(x, 1) for x in zip(*yolo_out)]
-            scores = x[0]
-            boxes = torch.cat(x[1:], 2)
-            return scores, boxes  # scores, boxes: bs x 3780x80, bs x 3780x4
+            # x = [torch.cat(x, 1) for x in zip(*yolo_out)]
+            # scores = x[0]
+            # boxes = torch.cat(x[1:], 2)
+            # return scores, boxes  # scores, boxes: bs x 3780x80, bs x 3780x4
+            io, p = zip(*yolo_out)  # inference output, training output
+            return torch.cat(io, 1)
         else:  # test
             io, p = zip(*yolo_out)  # inference output, training output
             return torch.cat(io, 1), p
