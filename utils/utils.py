@@ -108,11 +108,17 @@ def weights_init_normal(m):
 
 def xyxy2xywh(x):
     # Convert bounding box format from [x1, y1, x2, y2] to [x, y, w, h]
-    y = torch.zeros_like(x) if isinstance(x, torch.Tensor) else np.zeros_like(x)
-    y[:, 0] = (x[:, 0] + x[:, 2]) / 2
-    y[:, 1] = (x[:, 1] + x[:, 3]) / 2
-    y[:, 2] = x[:, 2] - x[:, 0]
-    y[:, 3] = x[:, 3] - x[:, 1]
+    # y = torch.zeros_like(x) if isinstance(x, torch.Tensor) else np.zeros_like(x)
+    y1 = (x[:, 0] + x[:, 2]) / 2
+    y2 = (x[:, 1] + x[:, 3]) / 2
+    y3 = x[:, 2] - x[:, 0]
+    y4 = x[:, 3] - x[:, 1]
+    y = torch.cat([y1, y2, y3, y4], 1)
+
+    # y[:, 0] = (x[:, 0] + x[:, 2]) / 2
+    # y[:, 1] = (x[:, 1] + x[:, 3]) / 2
+    # y[:, 2] = x[:, 2] - x[:, 0]
+    # y[:, 3] = x[:, 3] - x[:, 1]
     return y
 
 
@@ -529,7 +535,9 @@ def non_max_suppression(prediction, conf_thres=0.5, iou_thres=0.5, multi_cls=Tru
             continue
 
         # Compute conf
-        pred[..., 5:] *= pred[..., 4:5]  # conf = obj_conf * cls_conf
+        tmp = pred[..., 5:] * pred[..., 4:5]
+        pred = torch.cat([pred[..., :5, tmp]], -1)
+        # pred[..., 5:] *= pred[..., 4:5]  # conf = obj_conf * cls_conf
 
         # Box (center x, center y, width, height) to (x1, y1, x2, y2)
         box = xywh2xyxy(pred[:, :4])

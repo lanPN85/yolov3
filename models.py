@@ -339,6 +339,12 @@ class Darknet(nn.Module):
         # model_info(self)  # yolov3-spp reduced from 225 to 152 layers
 
 
+class DarknetPostProcWrapper(Darknet):
+    def forward(self, x, var=None):
+        out = super().forward(x, var=var)
+        out = non_max_suppression(out, classes=True)
+
+
 def get_yolo_layers(model):
     return [i for i, x in enumerate(model.module_defs) if x['type'] == 'yolo']  # [82, 94, 106] for yolov3
 

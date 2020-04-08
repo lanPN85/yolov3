@@ -7,7 +7,7 @@ from utils.utils import *
 
 
 def detect(save_img=False):
-    img_size = (320, 192) if ONNX_EXPORT else opt.img_size  # (320, 192) or (416, 256) or (608, 352) for (height, width)
+    img_size = (416, 416) if ONNX_EXPORT else opt.img_size  # (320, 192) or (416, 256) or (608, 352) for (height, width)
     out, source, weights, half, view_img, save_txt = opt.output, opt.source, opt.weights, opt.half, opt.view_img, opt.save_txt
     webcam = source == '0' or source.startswith('rtsp') or source.startswith('http') or source.endswith('.txt')
 
@@ -45,14 +45,13 @@ def detect(save_img=False):
     if ONNX_EXPORT:
         model.fuse()
         input_names = ['images']
-        output_names = ['boxes', 'scores']
+        output_names = ['output']
         dynamic_axes = {
             'images': {0: 'batch'},
-            'boxes': {0: 'batch'},
-            'scores': {0: 'batch'},
+            'output': {0: 'batch'}
         }
         img = torch.zeros((2, 3) + img_size)  # (2, 3, 320, 192)
-        torch.onnx.export(model, img, 'weights/yolov3-3.onnx', 
+        torch.onnx.export(model, img, 'weights/yolov3-3.onnx',
             verbose=False, opset_version=11,
             input_names=input_names,
             output_names=output_names,
